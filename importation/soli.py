@@ -52,10 +52,10 @@ class Soli:
                         # Data and label are numpy arrays
                         data = f['ch{}'.format(c)][()].reshape(num_frames,32,32)
                         
-                        
                         #Subsampling
                         if num_frames > self.nb_frames:
                             self.data[gestureID, self.sessions.index(sessionID), inst, c, :,:,:] = data[:self.nb_frames]
+                            self.labels[gestureID, self.sessions.index(sessionID), inst, :] = lab[:self.nb_frames].squeeze()
                         else:
                             self.data[gestureID, self.sessions.index(sessionID), inst, c, :num_frames,:,:] = data
-                        
+                            self.labels[gestureID, self.sessions.index(sessionID), inst, :num_frames] = lab.squeeze()
