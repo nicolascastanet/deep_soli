@@ -8,9 +8,10 @@ mode : mode 'cross user' -> 11x25x10 = 2750 sequences (10 users) utilisé dans le
        mode 'single user' -> 11x50x5 = 2750 sequences (1 users) utilisé pour la reconnaissance personalisée
 
 
-output : fichier pickle
+output : fichiers pickle
 
 	import pickle
-	soli_data = pickle.load( open( "soli_numpy.p", "rb" ) )
+	soli_data = pickle.load( open( "data_numpy.p", "rb" ) )
+	soli_labels = pickle.load( open( "labels_numpy.p", "rb" ) )
 
 dim = (nb_geste, nb_sessions, nb_instances, nb_channel, nb_frames, 32, 32)
