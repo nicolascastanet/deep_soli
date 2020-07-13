@@ -7,28 +7,7 @@ import pickle
 import random
 from pathlib import Path
 from datetime import date
-
-p = os.getcwd()
-today = date.today()
-res_path = f"{p}/res/res_{today.day}_{today.month}_{today.year}"
-
-try:
-    os.mkdir(res_path)
-except OSError:
-    print(f"{res_path} already created")
-else:
-    print(f"{res_path} successfully created")
-
-if bool(len(os.listdir(res_path)) == 0):
-    path = f"{res_path}/res_0"
-else:
-    nb_res = 0
-    for x in os.listdir(res_path):
-        if int(x.split('_')[1]) > nb_res:
-            nb_res = int(x.split('_')[1])
-    path = f"{res_path}/res_{nb_res+1}"
-print(f"{path} successfully created")
-os.mkdir(path)
+import argparse
 
 # for reading and displaying images
 # from skimage.io import imread
@@ -48,26 +27,69 @@ import torch.nn.functional as F
 #import h5py
 
 # Import model
-from net import CNNModel_1, CNNModel_2, CNN_RNN_model
+from net import CNNModel_1, CNNModel_2, CNNModel_3, CNN_RNN_model
+
+parser = argparse.ArgumentParser(description="Generate pickle")
+parser.add_argument('--train_fold', type=int)
+parser.add_argument('--shuffle', type=bool)
+parser.add_argument('--gpu', type=int)
+parser.add_argument('--folder', type=str)
+
+args = parser.parse_args()
+
+# Res folder creation
+
+p = os.getcwd()
+today = date.today()
+if args.folder == None:
+    res_path = f"{p}/res/res_{today.day}_{today.month}_{today.year}"
+else:
+    res_path = f"{p}/res/res_{today.day}_{today.month}_{today.year}/{args.folder}"
+
+
+try:
+    os.mkdir(res_path)
+except OSError:
+    print(f"{res_path} already created")
+else:
+    print(f"{res_path} successfully created")
+
+
+nb_res = 0
+for x in os.listdir(res_path):
+    if x.split('_')[0] == 'res' and int(x.split('_')[1]) > nb_res:
+        nb_res = int(x.split('_')[1])
+path = f"{res_path}/res_{nb_res+1}"
+
+
+print(f"{path} successfully created")
+os.mkdir(path)
 
 
 # Data importation
-print("loading pickle ...")
+print("loading data ...")
 out = open(f"{path}/out.txt", "a")
-out.write("loading pickle\n")
+out.write("loading data\n")
 out.write("\n-------------------------")
 out.write("\n-------------------------\n")
-data = pickle.load( open( "data/data_numpy.p", "rb" ) )
-frameLabels = pickle.load( open( "data/frameLabels_numpy.p", "rb" ) )
-gestureLabels = pickle.load( open( "data/gestureLabels_numpy.p", "rb" ))
 
+data = np.load('data/data.npy')
+gestureLabels = np.load('data/gestureLabels.npy')
+frameLabels = np.load('data/frameLabels.npy')
+# Load indexes of 5 folds
+idx_folds = np.load('data/5_folds.npy')
+
+num_fold = args.train_fold
+out.write("\n-------------------------\n")
+out.write(f"train_fold : {num_fold}")
 # Dim = (num_geste, num_frames, h, w, num_channels)
 X = data.reshape(2750,40,32,32,4)
 Y = gestureLabels.reshape(2750)
 
 # Train and test data
 sample_shape = (40,32,32,4)
-idx_train = np.array(random.sample(range(len(Y)), int(0.8 * len(Y))))
+
+idx_train = idx_folds[num_fold]
 idx_test = list(set(range(len(Y))) - set(idx_train))
 
 X_train = X[idx_train]
@@ -89,7 +111,7 @@ print("-"*25)
 print("test classes proportions")
 print(test_prop/test_prop.sum(0))
 print("_"*25)
-out.write("Train classes prop")
+out.write("\nTrain classes prop")
 out.write(str(train_prop/train_prop.sum(0)))
 out.write("\n-------------------------")
 out.write("\n-------------------------")
@@ -107,17 +129,15 @@ out.write(f"batch size : {batch_size}\n")
 # Pytorch train and test sets
 train = torch.utils.data.TensorDataset(train_x,train_y)
 test = torch.utils.data.TensorDataset(test_x,test_y)
-shuff = False
+shuff = args.shuffle
 out.write(f"shuffle dataloader at each epoch: {shuff}\n")
 # data loader
 train_loader = torch.utils.data.DataLoader(train, batch_size = batch_size, shuffle = shuff)
 test_loader = torch.utils.data.DataLoader(test, batch_size = batch_size, shuffle = shuff)
 print("dump data loader")
 
-out.write("dump data loader\n")
 
-torch.save(test_loader, f"{path}/test_loader")
-torch.save(train_loader, f"{path}/train_loader")
+
 num_classes = 11
 
 # Hyperparameters
@@ -127,13 +147,13 @@ num_epochs = 50
 
 CUDA = torch.cuda.is_available()
 if CUDA:
-    device = torch.device("cuda:0")
+    device = torch.device(f"cuda:{args.gpu}")
     print("running on GPU\n")
 else:
     device = torch.device("cpu")
     print("running on CPU\n")
 
-model = CNNModel_2(num_classes)
+model = CNNModel_3(num_classes)
 model.to(device)
 
 print(model)
@@ -142,7 +162,10 @@ out.write(str(model))
 error = nn.CrossEntropyLoss()
 
 # Adam Optimizer
-learning_rate = 0.001
+learning_rate = 0.0001
+out.write("\n-----------------\n")
+out.write(f"learning rate: {learning_rate}")
+out.write("\n-----------------\n")
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
