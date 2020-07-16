@@ -46,9 +46,8 @@ if args.folder == None:
 else:
     res_path = f"{p}/res/res_{today.day}_{today.month}_{today.year}/{args.folder}"
 
-
 try:
-    os.mkdir(res_path)
+    os.makedirs(res_path)
 except OSError:
     print(f"{res_path} already created")
 else:
@@ -111,11 +110,11 @@ print("-"*25)
 print("test classes proportions")
 print(test_prop/test_prop.sum(0))
 print("_"*25)
-out.write("\nTrain classes prop")
+out.write("\nTrain classes prop\n")
 out.write(str(train_prop/train_prop.sum(0)))
 out.write("\n-------------------------")
 out.write("\n-------------------------")
-out.write("Test classes prop")
+out.write("\nTest classes prop\n")
 out.write(str(test_prop/test_prop.sum(0)))
 out.write("\n-------------------------")
 # Numpy to tensor
@@ -148,7 +147,7 @@ num_epochs = 50
 CUDA = torch.cuda.is_available()
 if CUDA:
     device = torch.device(f"cuda:{args.gpu}")
-    print("running on GPU\n")
+    print(f"running on GPU number {args.gpu}\n")
 else:
     device = torch.device("cpu")
     print("running on CPU\n")
@@ -240,15 +239,16 @@ for epoch in range(num_epochs):
 
     print('Epoch {}/{}, Training Loss: {:.3f}, Training Accuracy: {:.3f}, Testing Loss: {:.3f}, Testing Acc: {:.3f}, Time: {}s'
                .format(epoch+1, num_epochs, train_loss[-1], train_accuracy[-1], test_loss[-1], test_accuracy[-1], stop-start))
+    out.write("\n---------------------------------------------\n")
     out.write('Epoch {}/{}, Training Loss: {:.3f}, Training Accuracy: {:.3f}, Testing Loss: {:.3f}, Testing Acc: {:.3f}, Time: {}s'
                    .format(epoch+1, num_epochs, train_loss[-1], train_accuracy[-1], test_loss[-1], test_accuracy[-1], stop-start))
 
 print("end training\n")
 
-pickle.dump(test_loss, open( f"{path}/test_loss.p", "wb" ) )
-pickle.dump(test_accuracy, open( f"{path}/test_acc.p", "wb" ) )
-pickle.dump(train_loss, open( f"{path}/train_loss.p", "wb" ) )
-pickle.dump(train_accuracy, open( f"{path}/train_acc.p", "wb" ) )
+torch.save(torch.tensor(test_loss).cpu(),f"{path}/test_loss")
+torch.save(torch.tensor(test_accuracy).cpu(),f"{path}/test_acc")
+torch.save(torch.tensor(train_loss).cpu(),f"{path}/train_loss")
+torch.save(torch.tensor(train_accuracy).cpu(),f"{path}/train_acc")
 
 
 torch.save(model, f"{path}/trained_net")

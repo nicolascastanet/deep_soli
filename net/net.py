@@ -101,7 +101,7 @@ class CNNModel_3(nn.Module):
         self.relu = nn.ReLU()
         self.batch=nn.BatchNorm1d(128)
         # Dropout
-        self.drop=nn.Dropout(p=0.2)
+        self.drop=nn.Dropout(p=0.5)
         
     def _conv_layer_set(self, in_c, out_c):
         conv_layer = nn.Sequential(
