@@ -1,6 +1,7 @@
 import argparse
 from soli import Soli
 import pickle
+import numpy as np
 
 
 def main(path, nb_frames = 40, mode = 'cross_user', num_channel=4):
@@ -8,8 +9,12 @@ def main(path, nb_frames = 40, mode = 'cross_user', num_channel=4):
     s = Soli(mode, nb_frames, num_channel)
     s.load_data(path)
 
-    print("loading pickle file ...")
-    pickle.dump(s.data, open( "soli_numpy.p", "wb" ) )
+    print("loading data ...")
+
+    np.save('soli_data.npy',s.data)
+    np.save('soli_gestLabels.npy', s.gestureLabels)
+    np.save('soli_framesLabels.npy', s.frameLabels)
+
 
 
 if __name__ == "__main__":
