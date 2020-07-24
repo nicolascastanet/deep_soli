@@ -12,10 +12,10 @@ import argparse
 p = Path(os.getcwd())
 DATA_PATH = f"{p.parent}/data/data.npy"
 
-def loader(path, channel = 0, nb_geste = 100, nb_frames = 40, reg_fact = 10e-17):
+def loader(path, channel, nb_geste = 2750, nb_frames = 40, reg_fact = 10e-16):
 
     c = Cov_soli(channel, nb_geste, nb_frames, reg_fact)
-
+    print(f"loading soli_spectrograms for channel : {channel}\n")
     c.load_cov(path)
     print("SPD test\n")
     print("-"*20)
@@ -30,10 +30,8 @@ def loader(path, channel = 0, nb_geste = 100, nb_frames = 40, reg_fact = 10e-17)
         print(f"test result : {c.spd_test()}\n")
         print("no regularization needed\n")
 
-    print("-"*20)
-    print("\nSaving data ...")
     cov_matr = c.get_cov_list()
-    np.save('cov_SPD.npy', cov_matr)
+    np.save(f"cov_SPD_ch{channel}.npy", cov_matr)
 
 
 parser = argparse.ArgumentParser(description="cov pooling")
@@ -46,4 +44,5 @@ parser.add_argument('--reg_fact', type=int)
 args = parser.parse_args()
 
 #loader(DATA_PATH, args.soli_channel, args.nb_gestures, args.nb_frames, args.reg_fact)
-loader(DATA_PATH)
+for c in range(4):
+    loader(DATA_PATH, c)

@@ -9,11 +9,12 @@ from pathlib import Path
 
 
 class Cov_soli():
-    def __init__(self, channel, nb_geste = 100, nb_frames = 40, reg_fact = 10e-17):
+    def __init__(self, channel, nb_geste, nb_frames = 40, reg_fact = 10e-17, shrink = False):
         self.channel = channel
         self.nb_gestures = nb_geste
         self.nb_frames = nb_frames
         self.reg_fact = reg_fact
+        self.shrink = shrink
         
 
     def load_cov(self, path):
@@ -28,20 +29,35 @@ class Cov_soli():
 
         # load covariance matrix list (one cov_matr per gesture)
         # pyriemann num_channel for one soli radar channel -> 32*32
-        #import ipdb; ipdb.set_trace()
-        self.cov_mat_list = pyriemann.estimation.Covariances().transform(X.reshape(self.nb_gestures,32*32,self.nb_frames))
+        if self.shrink == True:
+            self.cov_mat_list = pyriemann.estimation.Shrinkage().transform(X.reshape(self.nb_gestures,32*32,self.nb_frames))    
+        else:
+            self.cov_mat_list = pyriemann.estimation.Covariances().transform(X.reshape(self.nb_gestures,32*32,self.nb_frames))
 
-    def spd_test_matr(self, matr):
+    def spd_test_eig(self, matr):
         # test if all eigen values are > 0 <=> matr is SPD
         return True if np.all(np.linalg.eigvals(matr) > 0) else False
 
+    def spd_test_cholesky(self, matr):
+        # test if cholesky decomposition is possible <=> matrix is SPD
+        try:
+            np.linalg.cholesky(matr)
+        except np.linalg.LinAlgError:
+            return False
+        else:
+            return True
+
     def reg_matr(self, matr):
         # Regularize matrix with factor 'a'
+        import ipdb; ipdb.set_trace()
         return matr + self.reg_fact*matr.trace()*np.identity(matr.shape[0])
 
-    def spd_test(self):
+    def spd_test(self,mode = 0):
         # test if all cov matr are SPD
-        return np.all(list(map(self.spd_test_matr, self.cov_mat_list)))
+        if mode == 0:
+            return np.all(list(map(self.spd_test_cholesky, self.cov_mat_list)))
+        elif mode == 1:
+            return np.all(list(map(self.spd_test_eig, self.cov_mat_list)))
 
     def reg_cov(self):
         # regularization with fact reg_fact
