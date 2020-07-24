@@ -30,7 +30,8 @@ class Cov_soli():
         # load covariance matrix list (one cov_matr per gesture)
         # pyriemann num_channel for one soli radar channel -> 32*32
         if self.shrink == True:
-            self.cov_mat_list = pyriemann.estimation.Shrinkage().transform(X.reshape(self.nb_gestures,32*32,self.nb_frames))    
+            cov = pyriemann.estimation.Covariances().transform(X.reshape(self.nb_gestures,32*32,self.nb_frames))
+            self.cov_mat_list = pyriemann.estimation.Shrinkage().transform(cov)
         else:
             self.cov_mat_list = pyriemann.estimation.Covariances().transform(X.reshape(self.nb_gestures,32*32,self.nb_frames))
 

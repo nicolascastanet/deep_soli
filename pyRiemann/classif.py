@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from covariance_pooling import Cov_soli
 
+START = time.time()
 
 p = Path(os.getcwd())
 LABEL_PATH = f"{p.parent}/data/gestureLabels.npy"
@@ -41,7 +42,7 @@ start = time.time()
 cov = pyriemann.estimation.Covariances().transform(X.reshape(2750,32*32,40))
 cov = pyriemann.estimation.Shrinkage().transform(cov)
 stop = time.time()
-print(f"Done in {stop-start}\n")
+print(f"Done in {stop-start} sec\n")
 print("--------------------------\n")
 
 X_train = cov[idx_train]
@@ -59,7 +60,7 @@ start = time.time()
 res = c.spd_test()
 print(f"results : {res}\n")
 stop = time.time()
-print(f"Done in {stop-start}")
+print(f"Done in {stop-start} sec")
 print("--------------------------\n")
 
 if res == False:
@@ -68,19 +69,27 @@ if res == False:
     print("new SPD test ...\n")
     print(f"results : {c.spd_test()}\n")
 
-mdm = pyriemann.classification.MDM(n_jobs = -1)
+print("KNN with 5 neighbor algorithm\n")
+mdm = pyriemann.classification.KNearestNeighbor(n_jobs = -1)
 
 t1 = time.time()
 print("fitting to data ...\n")
 mdm.fit(X_train, Y_train)
 t2 = time.time()
-print(f"Done in {t2-t1}")
+print(f"Done in {(t2-t1)} min")
 print("--------------------------\n")
 
 print("predict ...\n")
 mdm.predict(X_test)
 t3 = time.time()
-print(f"Done in {t3-t2}")
-
+print(f"Done in {(t3-t2)/60} min")
+print("--------------------------\n")
+print("computing accuracy ...\n")
 accuracy = mdm.score(X_test,Y_test)
-print(f"Accuracy : {accuracy}")
+t4 = time.time()
+print(f"Done in : {(t4-t3)/60} min")
+print(f"Accuracy : {accuracy}\n")
+print("--------------------------\n")
+
+STOP = time.time()
+print(f"total time : {(STOP-START)/60} min")
