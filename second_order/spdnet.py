@@ -11,7 +11,7 @@ from torch.utils import data
 
 import torchspdnet.nn as spdnet
 from torchspdnet.optimizers import MixOptimizer
-sys.path.append('/home/castanet/Git/deep-soli')
+sys.path.append('/home/castanet/deep-soli')
 import utils as ut
 
 # Definition of the SPDNet
@@ -22,7 +22,7 @@ class soliSpdNet(nn.Module):
         dim = 1024
         dim1 = 512; dim2 = 256; dim3 = 128; dim4 = 64
         classes = 11
-        self.cov = spdnet.CovPool()
+        #self.cov = spdnet.CovPool()
         self.re = spdnet.ReEig()
         self.bimap1 = spdnet.BiMap(1,1,dim,dim1)
         self.bimap2 = spdnet.BiMap(1,1,dim1,dim2)
@@ -31,15 +31,29 @@ class soliSpdNet(nn.Module):
         self.logeig = spdnet.LogEig()
         self.linear = nn.Linear(dim4**2,classes)
 
+        if bn:
+            self.batchnorm1 = spdnet.BatchNormSPD(dim1)
+            self.batchnorm2 = spdnet.BatchNormSPD(dim2)
+            self.batchnorm3 = spdnet.BatchNormSPD(dim3)
+            self.batchnorm4 = spdnet.BatchNormSPD(dim4)
+
     def forward(self,x):
-        x = self.cov(x)
+        #x = self.cov(x)
         x = self.bimap1(x)
+        if self._bn:
+            x = self.batchnorm1(x)
         x = self.re(x)
         x = self.bimap2(x)
+        if self._bn:
+            x = self.batchnorm2(x)
         x = self.re(x)
         x = self.bimap3(x)
+        if self._bn:
+            x = self.batchnorm3(x)
         x = self.re(x)
         x = self.bimap4(x)
+        if self._bn:
+            x = self.batchnorm4(x)
         x = self.re(x)
         x = self.logeig(x)
         x_vec = x.view(x.shape[0],-1)
@@ -50,19 +64,22 @@ class soliSpdNet(nn.Module):
 def afew(test_loader, train_loader, out, device):
     
     #main parameters
-    lr=1e-4
+    lr=1e-3
     n=1024 #dimension of the data
     C=11 #number of classes
     batch_size=50 #batch size
     threshold_reeig=1e-4 #threshold for ReEig layer
-    num_epochs=50
+    num_epochs=100
+
+    out.write(f"\nlr : {lr}\n")
+    out.write(f"\nnum epochs : {num_epochs}\n")
     
 
     #setup data and model
     model = soliSpdNet()
     model = model.double()
     model = model.to(device)
-    out.write("-"*25)
+    out.write("-"*25); out.write("model :\n")
     out.write(str(model))
     total_params = sum(p.numel() for p in model.parameters())
     print(f"\ntrainable params : {total_params}")
@@ -72,7 +89,6 @@ def afew(test_loader, train_loader, out, device):
     loss_fn = nn.CrossEntropyLoss()
     opti = MixOptimizer(model.parameters(),lr=lr)
 
-    # Training loop
     print("Training ...")
 
     train_loss = []
@@ -91,18 +107,32 @@ def afew(test_loader, train_loader, out, device):
         model.train()
 
         for i, (frames, labels) in enumerate(train_loader):
-            train = frames.view(batch_size,32*32,40)
+            #import ipdb; ipdb.set_trace()
+            t1 = time.time()
+            train = frames.view(batch_size,1,1024,1024)
             total+= len(labels)
             train, labels = train.to(device), labels.to(device)
             opti.zero_grad()
-            outputs = model(train)
-            loss = loss_fn(outputs, labels)
-            iter_loss += loss.data
-            loss.backward()
-            opti.step()
-            predicted = th.max(outputs.data, 1)[1]
-            correct += (predicted == labels).sum()
-            iterations += 1
+
+            try:
+                outputs = model(train)
+                #import ipdb; ipdb.set_trace()
+                t2 = time.time()
+                #print(f"forward : {t2-t1}s")
+                loss = loss_fn(outputs, labels)
+                iter_loss += loss.data
+                loss.backward()
+                #import ipdb; ipdb.set_trace()
+                t3 = time.time()
+                #print(f"backward : {t3-t2}s")
+                opti.step()
+            except RuntimeError:
+                import ipdb; ipdb.set_trace()
+                return train_loss, test_loss, train_accuracy, test_accuracy, model
+            else:
+                predicted = th.max(outputs.data, 1)[1]
+                correct += (predicted == labels).sum()
+                iterations += 1
 
         # Record training loss
         train_loss.append(iter_loss/iterations)
@@ -116,16 +146,22 @@ def afew(test_loader, train_loader, out, device):
         model.eval()
        
         for i, (frames, labels) in enumerate(test_loader):
-            test = frames.view(batch_size,32*32,40)
-            total+= len(labels)
-            test, labels = test.to(device), labels.to(device)
-            with th.no_grad():
-                outputs = model(test)
-            loss = loss_fn(outputs, labels)
-            iter_loss += loss.data
-            predicted = th.max(outputs.data, 1)[1]
-            correct += (predicted == labels).sum()
-            iterations += 1
+            try:
+                test = frames.view(batch_size,1,1024,1024)
+                total+= len(labels)
+                test, labels = test.to(device), labels.to(device)
+                with th.no_grad():
+                    outputs = model(test)
+                
+                loss = loss_fn(outputs, labels)
+                iter_loss += loss.data
+            except RuntimeError:
+                import ipdb; ipdb.set_trace()
+                return train_loss, test_loss, train_accuracy, test_accuracy, model
+            else:
+                predicted = th.max(outputs.data, 1)[1]
+                correct += (predicted == labels).sum()
+                iterations += 1
 
         test_loss.append(iter_loss/iterations)
         test_accuracy.append((100 * correct / float(total)))
@@ -137,6 +173,8 @@ def afew(test_loader, train_loader, out, device):
         out.write("\n---------------------------------------------\n")
         out.write('Epoch {}/{}, Training Loss: {:.3f}, Training Accuracy: {:.3f}, Testing Loss: {:.3f}, Testing Acc: {:.3f}, Time: {}s'
                    .format(epoch+1, num_epochs, train_loss[-1], train_accuracy[-1], test_loss[-1], test_accuracy[-1], stop-start))
+
+        
     print("end training\n")
     return train_loss, test_loss, train_accuracy, test_accuracy, model
 
@@ -144,6 +182,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Generate pickle")
     parser.add_argument('--train_fold', type=int)
+    parser.add_argument('--channel', type=int)
+    parser.add_argument('--reg', type=str)
     parser.add_argument('--shuffle', type=bool)
     parser.add_argument('--gpu', type=int)
     parser.add_argument('--folder', type=str)
@@ -162,10 +202,8 @@ if __name__ == "__main__":
     FOLDS_IDX_PATH = f"{p}/data/5_folds.npy"
     num_classes = 11
     batch_size = 50
-    num_fold = 0
-    channel = 0
-
-    
+    num_fold = args.train_fold
+    channel = args.channel
 
     data = np.load(DATA_PATH)
     gestureLabels = np.load(LABEL_PATH)
@@ -175,11 +213,23 @@ if __name__ == "__main__":
     Y = np.load(LABEL_PATH).reshape(2750)
     # reshape to (n_trials, n_channels, n_samples) for pyriemann lib
 
-    print(f"\nSoli channel : {channel}\n")
-    out.write(f"\nsoli channel : {channel}\n")
+    print(f"Soli channel : {channel}\n")
+    print(f"fold : {num_fold}\n")
+    out.write(f"soli channel : {channel}\n")
+    out.write(f"fold : {num_fold}\n")
+    out.write(f"Batch_norm : {True}\n")
     X = np.swapaxes(data.reshape(2750,40,32,32,4),1,4)
     # dim = (nb_gesture, nb_channel, 32, 32, nb_frame)
     X = X[:,channel,:,:,:]
+
+    cov = spdnet.CovPool()
+
+    print("Covariance pooling + regularization\n")
+    start = time.time()
+    X = cov(th.tensor(X.reshape(2750,1024,40)).double())
+    stop = time.time()
+    print(f"Done in {(stop-start)} s\n")
+    
 
     idx_train = idx_folds[num_fold]
     idx_test = list(set(range(len(Y))) - set(idx_train))
@@ -189,9 +239,10 @@ if __name__ == "__main__":
 
     X_test = X[idx_test]
     Y_test = Y[idx_test]
-    train_x = th.tensor(X_train).double()
+
+    train_x = X_train
     train_y = th.tensor(Y_train).long()
-    test_x = th.tensor(X_test).double()
+    test_x = X_test
     test_y = th.tensor(Y_test).long()
 
     # Pytorch train and test sets
@@ -210,6 +261,7 @@ if __name__ == "__main__":
         device = th.device("cpu")
         print("running on CPU\n")
 
+    
     train_loss, test_loss, train_accuracy, test_accuracy, model = afew(test_loader, train_loader, out, device)
 
     th.save(th.tensor(test_loss).cpu(),f"{path}/test_loss")
@@ -225,7 +277,7 @@ if __name__ == "__main__":
     with th.no_grad():
         for i,(inputs, classes) in enumerate(test_loader):
             print(f"batch {i}")
-            inputs = inputs.view(batch_size,32*32,40)
+            inputs = inputs.view(batch_size,1,1024,1024)
             inputs, classes = inputs.to(device), classes.to(device)
             outputs = model(inputs)
             _, preds = th.max(outputs,1)
